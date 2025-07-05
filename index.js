@@ -11,8 +11,8 @@ app.post("/webhook", async (req, res) => {
   console.log("Received message:", message);
 
   try {
-   const response = await axios.post(
-  "https://dust.tt/api/v1/assistants/YBVHdJa3Bc/run",
+  const response = await axios.post(
+  "https://dust.tt/api/v1/w/VZuYxk8oJc/spaces/vlt_CvSgrjpFZuGa/apps/YBVHdJa3Bc/run", // ← ten!
   {
     input: {
       USER_INPUT: message
@@ -24,6 +24,7 @@ app.post("/webhook", async (req, res) => {
     }
   }
 );
+
 
 const reply = response.data.outputs?.[0]?.value || "Brak odpowiedzi.";
 
