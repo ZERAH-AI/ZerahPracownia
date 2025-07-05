@@ -11,19 +11,22 @@ app.post("/webhook", async (req, res) => {
   console.log("Received message:", message);
 
   try {
-    const response = await axios.post(
-      "https://dust.tt/api/v1/assistants/YBVHdJa3Bc/respond",
-      {
-        messages: [{ role: "user", content: message }]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.DUST_API_KEY}`
-        }
-      }
-    );
+   const response = await axios.post(
+  "https://dust.tt/api/v1/assistants/YBVHdJa3Bc/run",
+  {
+    input: {
+      USER_INPUT: message
+    }
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.DUST_API_KEY}`
+    }
+  }
+);
 
-    const reply = response.data.choices?.[0]?.message?.content || "Brak odpowiedzi.";
+const reply = response.data.outputs?.[0]?.value || "Brak odpowiedzi.";
+
     console.log("Reply from Dust:", reply);
 
     // Send message back to Chatwoot
