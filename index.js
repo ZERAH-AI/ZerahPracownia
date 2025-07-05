@@ -8,29 +8,14 @@ app.use(express.json());
 app.post("/webhook", async (req, res) => {
   const message = req.body?.content;
   const conversation_id = req.body?.conversation_id;
+
   console.log("Received message:", message);
 
+  // 🔁 Jeśli Dust przesyła gotową odpowiedź:
+  const reply = req.body?.reply || "Brak odpowiedzi od Dusta.";
+
   try {
-  const response = await axios.post(
-  "https://dust.tt/api/v1/w/VZuYxk8oJc/spaces/vlt_CvSgrjpFZuGa/apps/YBVHdJa3Bc/run", // ← ten!
-  {
-    input: {
-      USER_INPUT: message
-    }
-  },
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.DUST_API_KEY}`
-    }
-  }
-);
-
-
-const reply = response.data.outputs?.[0]?.value || "Brak odpowiedzi.";
-
-    console.log("Reply from Dust:", reply);
-
-    // Send message back to Chatwoot
+    // 💬 Wyślij wiadomość do Chatwoot
     await axios.post(
       `${process.env.CHATWOOT_API_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversation_id}/messages`,
       {
@@ -44,13 +29,15 @@ const reply = response.data.outputs?.[0]?.value || "Brak odpowiedzi.";
       }
     );
 
+    console.log("Wysłano odpowiedź do Chatwoot:", reply);
     res.sendStatus(200);
   } catch (err) {
-    console.error("Error:", err.response?.data || err.message);
+    console.error("Error sending to Chatwoot:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
 
+// Testowa strona GET
 app.get("/", (req, res) => {
   res.send("ZerahWebhook działa 🚀");
 });
