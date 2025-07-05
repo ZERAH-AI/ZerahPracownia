@@ -10,7 +10,11 @@ app.post("/webhook", async (req, res) => {
   console.log("🔍 Pełne body:", JSON.stringify(req.body, null, 2));
 
   const message = req.body?.content;
-  const conversation_id = req.body?.conversation_id || req.body?.external_conversation_id || req.body?.conversationId;
+ const conversation_id =
+  req.body?.conversation?.id || 
+  req.body?.conversation_id || 
+  req.body?.external_conversation_id || 
+  req.body?.conversationId;
 
   console.log("📥 Odebrano wiadomość:", message);
   console.log("🧾 ID rozmowy:", conversation_id);
