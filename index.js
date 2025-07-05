@@ -6,7 +6,11 @@ const app = express();
 app.use(express.json());
 
 app.post("/webhook", async (req, res) => {
+  // 🔍 Loguj pełne body dla debugowania
+  console.log("📦 Pełne body:", JSON.stringify(req.body, null, 2));
+
   const message = req.body?.content;
+
   const conversation_id =
     req.body?.conversation?.id ||
     req.body?.conversation_id ||
@@ -16,32 +20,39 @@ app.post("/webhook", async (req, res) => {
   console.log("📥 Odebrano wiadomość:", message);
   console.log("🧾 ID rozmowy:", conversation_id);
 
-  if (!conversation_id || !message) {
-    console.error("⛔ Brakuje danych wejściowych");
-    return res.status(400).send("conversation_id and message are required");
+  // Jeśli brak ID — zakończ
+  if (!conversation_id) {
+    console.error("❌ Brak conversation_id. Nie można wysłać odpowiedzi.");
+    return res.status(400).send("conversation_id is required");
   }
 
+  let reply = "Brak odpowiedzi od Dusta.";
+
   try {
-    // 🔄 Wyślij wiadomość do Dust i czekaj na odpowiedź
-    const dustResponse = await axios.post(
-      "https://dust.tt/api/v1/apps/YOUR_APP_ID/run",
+    // ✅ Zapytanie do Dust
+    const response = await axios.post(
+      "https://dust.tt/api/v1/run/vlt_CvSgrjpFZuGa/YBVHdJa3Bc",
       {
-        inputs: { message }
+        inputs: {
+          user_input: message
+        }
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.DUST_API_KEY}`
+          Authorization: `Bearer ${process.env.DUST_API_KEY}`,
+          "Content-Type": "application/json"
         }
       }
     );
 
-    const reply =
-      dustResponse.data?.outputs?.[0]?.text?.value ||
-      "Brak odpowiedzi od Dusta.";
+    reply = response.data?.outputs?.[0]?.text || reply;
+    console.log("✅ Odpowiedź z Dusta:", reply);
+  } catch (err) {
+    console.error("❌ Błąd przy zapytaniu do Dusta:", err.response?.data || err.message);
+  }
 
-    console.log("🤖 Odpowiedź Dusta:", reply);
-
-    // 💬 Odeślij do Chatwoot
+  try {
+    // 💬 Wyślij odpowiedź do Chatwoot
     await axios.post(
       `${process.env.CHATWOOT_API_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversation_id}/messages`,
       {
@@ -55,10 +66,10 @@ app.post("/webhook", async (req, res) => {
       }
     );
 
-    console.log("✅ Wysłano odpowiedź do Chatwoot");
+    console.log("✅ Wysłano odpowiedź do Chatwoot:", reply);
     res.sendStatus(200);
   } catch (err) {
-    console.error("❌ Błąd:", err.response?.data || err.message);
+    console.error("❌ Błąd wysyłania do Chatwoot:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
@@ -68,9 +79,6 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
 
-
-// Nasłuch na porcie
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Serwer nasłuchuje na porcie ${PORT}`));
