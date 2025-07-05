@@ -12,7 +12,7 @@ app.post("/webhook", async (req, res) => {
 
   try {
     const response = await axios.post(
-      "https://dust.tt/api/v1/assistants/ZerahHelpBotX/respond",
+      "https://dust.tt/api/v1/assistants/YBVHdJa3Bc/respond",
       {
         messages: [{ role: "user", content: message }]
       },
