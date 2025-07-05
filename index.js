@@ -5,42 +5,52 @@ require("dotenv").config();
 const app = express();
 app.use(express.json());
 
+// Webhook odbierający wiadomości od Dust
 app.post("/webhook", async (req, res) => {
+  console.log("🔍 Pełne body:", JSON.stringify(req.body, null, 2));
+
   const message = req.body?.content;
-  const conversation_id = req.body?.conversation_id;
+  const conversation_id = req.body?.conversation_id || req.body?.external_conversation_id || req.body?.conversationId;
 
-  console.log("Received message:", message);
+  console.log("📥 Odebrano wiadomość:", message);
+  console.log("🧾 ID rozmowy:", conversation_id);
 
-  // 🔁 Jeśli Dust przesyła gotową odpowiedź:
   const reply = req.body?.reply || "Brak odpowiedzi od Dusta.";
 
-  try {
-    // 💬 Wyślij wiadomość do Chatwoot
-    await axios.post(
-      `${process.env.CHATWOOT_API_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversation_id}/messages`,
-      {
-        content: reply,
-        message_type: "outgoing"
-      },
-      {
-        headers: {
-          api_access_token: process.env.CHATWOOT_API_KEY
-        }
-      }
-    );
+  // Jeśli nie ma conversation_id, nie ma sensu wysyłać wiadomości
+  if (!conversation_id) {
+    console.error("❌ Brak conversation_id. Nie można wysłać odpowiedzi.");
+    return res.status(400).send("conversation_id is required");
+  }
 
-    console.log("Wysłano odpowiedź do Chatwoot:", reply);
+  try {
+    // Wysyłanie odpowiedzi do Chatwoot
+    const url = `${process.env.CHATWOOT_API_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversation_id}/messages`;
+
+    const payload = {
+      content: reply,
+      message_type: "outgoing"
+    };
+
+    const headers = {
+      api_access_token: process.env.CHATWOOT_API_KEY
+    };
+
+    await axios.post(url, payload, { headers });
+
+    console.log("✅ Wysłano odpowiedź do Chatwoot:", reply);
     res.sendStatus(200);
   } catch (err) {
-    console.error("Error sending to Chatwoot:", err.response?.data || err.message);
+    console.error("❌ Błąd przy wysyłaniu do Chatwoot:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
 
-// Testowa strona GET
+// Endpoint testowy GET
 app.get("/", (req, res) => {
-  res.send("ZerahWebhook działa 🚀");
+  res.send("🚀 ZerahWebhook działa!");
 });
 
+// Nasłuch na porcie
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Serwer nasłuchuje na porcie ${PORT}`));
