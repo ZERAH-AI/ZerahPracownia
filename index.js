@@ -18,31 +18,30 @@ app.post("/webhook", async (req, res) => {
   console.log("📥 Odebrano wiadomość:", message);
   console.log("🧾 ID rozmowy:", conversation_id);
 
-  if (!conversation_id || !message) {
-    console.error("❌ Brak danych wejściowych.");
-    return res.status(400).send("Missing message or conversation_id");
+  if (!conversation_id) {
+    console.error("❌ Brak conversation_id. Nie można wysłać odpowiedzi.");
+    return res.status(400).send("conversation_id is required");
   }
 
+  // Sprawdzenie zmiennych Dust
   if (
     !process.env.DUST_API_KEY ||
     !process.env.DUST_PROJECT_ID ||
     !process.env.DUST_SPEC_HASH
   ) {
-    console.error("❌ Brakuje zmiennych Dust.");
-    return res.status(500).send("Dust environment variables missing");
+    console.error("❌ Brakuje zmiennych środowiskowych dla Dust.");
+    return res.status(500).send("Missing Dust environment variables");
   }
 
-  let reply = "Brak odpowiedzi od AI.";
+  let reply = "Brak odpowiedzi od AI";
 
-  // 1️⃣ Wysyłka do Dust
   try {
+    console.log("🧠 Wysyłam zapytanie do Dust...");
+
     const dustResponse = await axios.post(
-      `https://dust.tt/api/v1/projects/${process.env.DUST_PROJECT_ID}/runs`,
+      `https://dust.tt/api/v1/projects/${process.env.DUST_PROJECT_ID}/apps/${process.env.DUST_SPEC_HASH}/run`,
       {
-        specification_hash: process.env.DUST_SPEC_HASH,
-        inputs: {
-          message: message,
-        },
+        inputs: [{ USER_INPUT: message }],
       },
       {
         headers: {
@@ -52,24 +51,30 @@ app.post("/webhook", async (req, res) => {
       }
     );
 
-    reply = dustResponse.data.run.output;
-    console.log("🤖 Odpowiedź z Dust:", reply);
-  } catch (error) {
-    console.error("❌ Błąd Dust:", error.response?.data || error.message);
+    const output = dustResponse.data?.outputs?.[0]?.MODEL_OUTPUT?.[0]?.content;
+
+    if (output) {
+      reply = output;
+      console.log("✅ Odpowiedź z Dust:", reply);
+    } else {
+      console.warn("⚠️ Brak odpowiedzi w formacie MODEL_OUTPUT.");
+    }
+  } catch (err) {
+    console.error("❌ Błąd Dust:", err.response?.data || err.message);
   }
 
-  // 2️⃣ Wysyłka odpowiedzi do Chatwoot
   if (
     !process.env.CHATWOOT_API_URL ||
     !process.env.CHATWOOT_API_KEY ||
     !process.env.CHATWOOT_ACCOUNT_ID
   ) {
-    console.error("❌ Brakuje zmiennych Chatwoot.");
-    return res.status(500).send("Chatwoot environment variables missing");
+    console.error("❌ Brakuje zmiennych środowiskowych Chatwoot.");
+    return res.status(500).send("Missing Chatwoot environment variables");
   }
 
   try {
     const url = `${process.env.CHATWOOT_API_URL}/api/v1/accounts/${process.env.CHATWOOT_ACCOUNT_ID}/conversations/${conversation_id}/messages`;
+
     console.log("➡️ Wysyłam odpowiedź do Chatwoot:", url);
 
     await axios.post(
@@ -86,16 +91,19 @@ app.post("/webhook", async (req, res) => {
       }
     );
 
-    console.log("✅ Odpowiedź wysłana do Chatwoot.");
+    console.log("✅ Wysłano odpowiedź do Chatwoot:", reply);
     res.status(200).send("OK");
   } catch (error) {
-    console.error("❌ Błąd przy wysyłaniu do Chatwoot:", error.response?.data || error.message);
+    console.error(
+      "❌ Błąd przy wysyłaniu do Chatwoot:",
+      error.response?.data || error.message
+    );
     res.status(500).send("Error sending message to Chatwoot");
   }
 });
 
+// Serwer Express
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Serwer działa na porcie ${PORT}`);
 });
-
