@@ -1,4 +1,4 @@
-// index.js - Railway Dust + Chatwoot Integration (Z DEBUG)
+// index.js - Railway Dust + Chatwoot Integration (Zaktualizowany z nowym API key)
 
 const express = require('express');
 const axios = require('axios');
@@ -9,9 +9,9 @@ const CONFIG = {
     // Dust Configuration
     dust: {
         workspaceId: process.env.DUST_WORKSPACE_ID || 'VZuYxk8oJc',
-        apiKey: process.env.DUST_API_KEY || apiKey: process.env.DUST_API_KEY || 'sk-5c8182c9e0b7dc328aede690823cbbc2',
+        apiKey: process.env.DUST_API_KEY || 'sk-5c8182c9e0b7dc328aede690823cbbc2',
         agentName: process.env.DUST_NAME || 'ZERAH',
-        agentId: 'XxANDnN74a', // Backup Agent ID
+        agentId: 'XxANDnN74a', // Agent ID
         baseUrl: 'https://dust.tt/api/v1'
     },
     // Chatwoot Configuration
@@ -29,6 +29,8 @@ app.use(express.json());
 // POPRAWIONA funkcja do wywołania Dust Agent @ZERAH
 async function callDustAgent(message, username = 'Chatwoot User', conversationId = null) {
     try {
+        console.log('🤖 Calling Dust Agent with message:', message);
+        
         // Najpierw utwórz nową konwersację
         const conversationResponse = await axios.post(
             `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations`,
@@ -45,7 +47,7 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
         );
 
         const newConversationId = conversationResponse.data.conversation.sId;
-        console.log(`Created conversation: ${newConversationId}`);
+        console.log(`✅ Conversation created: ${newConversationId}`);
 
         // Następnie wyślij wiadomość do konwersacji z @ZERAH
         const messageResponse = await axios.post(
@@ -54,7 +56,7 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
                 content: message,
                 mentions: [
                     {
-                        configurationId: CONFIG.dust.agentName
+                        configurationId: CONFIG.dust.agentId // Użyj Agent ID
                     }
                 ],
                 context: {
@@ -73,11 +75,11 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
             }
         );
 
-        console.log('Message sent successfully to Dust');
+        console.log('✅ Message sent to Dust successfully');
         return messageResponse.data;
 
     } catch (error) {
-        console.error('Dust API Error:', {
+        console.error('❌ Dust API Error:', {
             status: error.response?.status,
             statusText: error.response?.statusText,
             data: error.response?.data,
@@ -150,6 +152,7 @@ app.get('/health', (req, res) => {
                 agentName: CONFIG.dust.agentName,
                 agentId: CONFIG.dust.agentId,
                 hasApiKey: !!CONFIG.dust.apiKey,
+                apiKeyPrefix: CONFIG.dust.apiKey ? CONFIG.dust.apiKey.substring(0, 15) + '...' : 'MISSING',
                 baseUrl: CONFIG.dust.baseUrl
             },
             chatwoot: {
@@ -204,7 +207,6 @@ app.get('/debug-detailed', async (req, res) => {
         console.error('Status Text:', error.response?.statusText);
         console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
         console.error('Request URL:', error.config?.url);
-        console.error('Request Headers:', error.config?.headers);
         
         res.status(500).json({
             success: false,
@@ -523,6 +525,7 @@ app.listen(CONFIG.port, '0.0.0.0', () => {
     console.log(`💬 Chatwoot URL: ${CONFIG.chatwoot.apiUrl}`);
     console.log(`🎯 Dust Agent: ${CONFIG.dust.agentName} (ID: ${CONFIG.dust.agentId})`);
     console.log(`🌍 App URL: https://zerahpracownia-production.up.railway.app`);
+    console.log(`🔑 API Key: ${CONFIG.dust.apiKey.substring(0, 15)}...`);
 });
 
 module.exports = app;
