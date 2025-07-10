@@ -1,4 +1,4 @@
-// index.js - Railway Dust + Chatwoot Integration (Zaktualizowany kod)
+// index.js - Railway Dust + Chatwoot Integration (Z DEBUG)
 
 const express = require('express');
 const axios = require('axios');
@@ -9,9 +9,9 @@ const CONFIG = {
     // Dust Configuration
     dust: {
         workspaceId: process.env.DUST_WORKSPACE_ID || 'VZuYxk8oJc',
-        apiKey: process.env.DUST_API_KEY || 'sk-e2ebddefecce8e1fbae40cbe95607986',
+        apiKey: process.env.DUST_API_KEY || 'sk-ee00a36fdbbd5c17318c0e90fcb8572',
         agentName: process.env.DUST_NAME || 'ZERAH',
-        agentId: 'XxANDnN74a', // Backup Agent ID - zaktualizuj po teście /test/agents
+        agentId: 'XxANDnN74a', // Backup Agent ID
         baseUrl: 'https://dust.tt/api/v1'
     },
     // Chatwoot Configuration
@@ -54,7 +54,7 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
                 content: message,
                 mentions: [
                     {
-                        configurationId: CONFIG.dust.agentName // Spróbuj najpierw z nazwą
+                        configurationId: CONFIG.dust.agentName
                     }
                 ],
                 context: {
@@ -83,61 +83,6 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
             data: error.response?.data,
             url: error.config?.url
         });
-
-        // Jeśli nazwa nie działa, spróbuj z ID
-        if (error.response?.status === 404 || error.response?.status === 400) {
-            try {
-                console.log('Retrying with agent ID...');
-                
-                // Utwórz nową konwersację dla retry
-                const retryConversationResponse = await axios.post(
-                    `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations`,
-                    {
-                        title: `Chatwoot Retry: ${username}`,
-                        visibility: "private"
-                    },
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${CONFIG.dust.apiKey}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                const retryConversationId = retryConversationResponse.data.conversation.sId;
-
-                const retryMessageResponse = await axios.post(
-                    `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations/${retryConversationId}/messages`,
-                    {
-                        content: message,
-                        mentions: [
-                            {
-                                configurationId: CONFIG.dust.agentId // Użyj backup ID
-                            }
-                        ],
-                        context: {
-                            username: username,
-                            timezone: "Europe/Warsaw",
-                            fullName: username,
-                            email: "chatwoot@zerah.online",
-                            origin: "api"
-                        }
-                    },
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${CONFIG.dust.apiKey}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-                
-                console.log('Retry successful');
-                return retryMessageResponse.data;
-            } catch (retryError) {
-                console.error('Retry failed:', retryError.response?.data);
-                throw retryError;
-            }
-        }
         throw error;
     }
 }
@@ -181,6 +126,8 @@ app.get('/', (req, res) => {
             testAgents: 'GET /test/agents',
             testZerah: 'GET /test/zerah',
             testWorkspace: 'GET /test/workspace',
+            debugDetailed: 'GET /debug-detailed',
+            debugApi: 'GET /debug-api',
             health: 'GET /health'
         },
         config: {
@@ -216,7 +163,80 @@ app.get('/health', (req, res) => {
     });
 });
 
-// NOWY: Sprawdź dostępnych agentów - WAŻNE dla znalezienia @ZERAH
+// DEBUG: Szczegółowy test API
+app.get('/debug-detailed', async (req, res) => {
+    const testUrl = `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/spaces`;
+    
+    try {
+        console.log('=== DEBUG TEST START ===');
+        console.log('URL:', testUrl);
+        console.log('Workspace ID:', CONFIG.dust.workspaceId);
+        console.log('API Key (first 20 chars):', CONFIG.dust.apiKey.substring(0, 20) + '...');
+        console.log('API Key length:', CONFIG.dust.apiKey.length);
+        console.log('Base URL:', CONFIG.dust.baseUrl);
+        
+        const response = await axios.get(testUrl, {
+            headers: {
+                'Authorization': `Bearer ${CONFIG.dust.apiKey}`,
+                'Accept': 'application/json',
+                'User-Agent': 'Railway-Dust-Integration'
+            },
+            timeout: 15000
+        });
+        
+        console.log('=== SUCCESS ===');
+        console.log('Status:', response.status);
+        console.log('Data received:', !!response.data);
+        
+        res.json({
+            success: true,
+            message: 'API call successful! 🎉',
+            status: response.status,
+            dataReceived: !!response.data,
+            spacesCount: response.data?.spaces?.length || 0,
+            spaces: response.data?.spaces?.map(s => s.name) || [],
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('=== ERROR DETAILS ===');
+        console.error('Status:', error.response?.status);
+        console.error('Status Text:', error.response?.statusText);
+        console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+        console.error('Request URL:', error.config?.url);
+        console.error('Request Headers:', error.config?.headers);
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            errorData: error.response?.data,
+            requestUrl: error.config?.url,
+            apiKeyPrefix: CONFIG.dust.apiKey.substring(0, 15) + '...',
+            workspaceId: CONFIG.dust.workspaceId,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// DEBUG: Sprawdź konfigurację
+app.get('/debug-api', (req, res) => {
+    res.json({
+        envApiKey: process.env.DUST_API_KEY ? process.env.DUST_API_KEY.substring(0, 15) + '...' : 'MISSING',
+        configApiKey: CONFIG.dust.apiKey ? CONFIG.dust.apiKey.substring(0, 15) + '...' : 'MISSING',
+        envWorkspace: process.env.DUST_WORKSPACE_ID,
+        configWorkspace: CONFIG.dust.workspaceId,
+        baseUrl: CONFIG.dust.baseUrl,
+        apiKeyLength: CONFIG.dust.apiKey ? CONFIG.dust.apiKey.length : 0,
+        railwayVars: {
+            DUST_WORKSPACE_ID: process.env.DUST_WORKSPACE_ID || 'NOT_SET',
+            DUST_API_KEY: process.env.DUST_API_KEY ? 'SET' : 'NOT_SET'
+        }
+    });
+});
+
+// Sprawdź dostępnych agentów
 app.get('/test/agents', async (req, res) => {
     try {
         const response = await axios.get(
@@ -259,7 +279,7 @@ app.get('/test/agents', async (req, res) => {
     }
 });
 
-// NOWY: Test workspace
+// Test workspace
 app.get('/test/workspace', async (req, res) => {
     try {
         const response = await axios.get(
@@ -286,7 +306,7 @@ app.get('/test/workspace', async (req, res) => {
     }
 });
 
-// NOWY: Test specjalnie dla @ZERAH
+// Test specjalnie dla @ZERAH
 app.get('/test/zerah', async (req, res) => {
     try {
         const testMessage = req.query.message || 'Cześć ZERAH! To jest test z Railway dla agenta ZERAH.';
@@ -312,7 +332,7 @@ app.get('/test/zerah', async (req, res) => {
     }
 });
 
-// Prosty test Dust API - sprawdza połączenie
+// Prosty test Dust API
 app.get('/test/dust-simple', async (req, res) => {
     try {
         const response = await axios.get(
@@ -410,7 +430,6 @@ app.post('/webhook/chatwoot', async (req, res) => {
             messageType: message_created?.message_type 
         });
 
-        // Reaguj tylko na nowe wiadomości od klientów
         if (event === 'message_created' && 
             message_created && 
             message_created.message_type === 'incoming' &&
@@ -422,10 +441,8 @@ app.post('/webhook/chatwoot', async (req, res) => {
             
             console.log(`Processing message from ${senderName}: ${messageContent}`);
 
-            // Wywołaj Dust Agent @ZERAH
             const dustResponse = await callDustAgent(messageContent, senderName, conversationId);
 
-            // Wyślij odpowiedź z powrotem do Chatwoot
             if (dustResponse && dustResponse.content) {
                 await sendChatwootMessage(
                     conversationId, 
@@ -444,7 +461,6 @@ app.post('/webhook/chatwoot', async (req, res) => {
             });
 
         } else {
-            // Ignoruj inne typy eventów
             res.json({ 
                 success: true, 
                 processed: false, 
@@ -498,11 +514,12 @@ app.listen(CONFIG.port, '0.0.0.0', () => {
     console.log(`📡 Chatwoot webhook: /webhook/chatwoot`);
     console.log(`🤖 Dust webhook: /webhook/dust`);
     console.log(`🧪 Test endpoints:`);
-    console.log(`   - /test/agents (find ZERAH agent)`);
-    console.log(`   - /test/zerah (test ZERAH specifically)`);
+    console.log(`   - /debug-detailed (MAIN DEBUG)`);
+    console.log(`   - /debug-api (config check)`);
+    console.log(`   - /test/agents`);
     console.log(`   - /test/workspace`);
+    console.log(`   - /test/zerah`);
     console.log(`   - /test/chatwoot`);
-    console.log(`   - /test/dust-simple`);
     console.log(`💬 Chatwoot URL: ${CONFIG.chatwoot.apiUrl}`);
     console.log(`🎯 Dust Agent: ${CONFIG.dust.agentName} (ID: ${CONFIG.dust.agentId})`);
     console.log(`🌍 App URL: https://zerahpracownia-production.up.railway.app`);
