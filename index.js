@@ -11,7 +11,7 @@ const CONFIG = {
         workspaceId: process.env.DUST_WORKSPACE_ID || 'VZuYxk8oJc',
         apiKey: process.env.DUST_API_KEY || 'sk-4c091a74340924f59ac24ffd77004b2d',
         agentName: process.env.DUST_NAME || 'ZERAH',
-        agentId: 'XxANDnN74a', // Agent ID
+        agentId: 'mhmm8HSWpr', // Agent ID
         baseUrl: 'https://dust.tt/api/v1'
     },
     // Chatwoot Configuration
