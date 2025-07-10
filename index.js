@@ -9,7 +9,7 @@ const CONFIG = {
     // Dust Configuration
     dust: {
         workspaceId: process.env.DUST_WORKSPACE_ID || 'VZuYxk8oJc',
-        apiKey: process.env.DUST_API_KEY || 'sk-5c8182c9e0b7dc328aede690823cbbc2',
+        apiKey: process.env.DUST_API_KEY || 'sk-4c091a74340924f59ac24ffd77004b2d',
         agentName: process.env.DUST_NAME || 'ZERAH',
         agentId: 'XxANDnN74a', // Agent ID
         baseUrl: 'https://dust.tt/api/v1'
