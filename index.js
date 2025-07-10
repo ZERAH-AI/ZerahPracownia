@@ -1,4 +1,5 @@
-// index.js - Railway Dust + Chatwoot Integration (Kompletny kod)
+// index.js - Railway Dust + Chatwoot Integration (Zaktualizowany kod)
+
 const express = require('express');
 const axios = require('axios');
 const app = express();
@@ -10,7 +11,7 @@ const CONFIG = {
         workspaceId: process.env.DUST_WORKSPACE_ID || 'VZuYxk8oJc',
         apiKey: process.env.DUST_API_KEY || 'sk-e2ebddefecce8e1fbae40cbe95607986',
         agentName: process.env.DUST_NAME || 'ZERAH',
-        agentId: 'XxANDnN74a', // Backup Agent ID
+        agentId: 'XxANDnN74a', // Backup Agent ID - zaktualizuj po teście /test/agents
         baseUrl: 'https://dust.tt/api/v1'
     },
     // Chatwoot Configuration
@@ -25,15 +26,15 @@ const CONFIG = {
 
 app.use(express.json());
 
-// Poprawiona funkcja do wywołania Dust Agent
+// POPRAWIONA funkcja do wywołania Dust Agent @ZERAH
 async function callDustAgent(message, username = 'Chatwoot User', conversationId = null) {
     try {
-        const response = await axios.post(
+        // Najpierw utwórz nową konwersację
+        const conversationResponse = await axios.post(
             `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations`,
             {
-                message: message,
-                blocking: true,
-                agentConfigurationId: CONFIG.dust.agentName
+                title: `Chatwoot: ${username}`,
+                visibility: "private"
             },
             {
                 headers: {
@@ -43,7 +44,38 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
             }
         );
 
-        return response.data;
+        const newConversationId = conversationResponse.data.conversation.sId;
+        console.log(`Created conversation: ${newConversationId}`);
+
+        // Następnie wyślij wiadomość do konwersacji z @ZERAH
+        const messageResponse = await axios.post(
+            `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations/${newConversationId}/messages`,
+            {
+                content: message,
+                mentions: [
+                    {
+                        configurationId: CONFIG.dust.agentName // Spróbuj najpierw z nazwą
+                    }
+                ],
+                context: {
+                    username: username,
+                    timezone: "Europe/Warsaw",
+                    fullName: username,
+                    email: "chatwoot@zerah.online",
+                    origin: "api"
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${CONFIG.dust.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('Message sent successfully to Dust');
+        return messageResponse.data;
+
     } catch (error) {
         console.error('Dust API Error:', {
             status: error.response?.status,
@@ -51,16 +83,18 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
             data: error.response?.data,
             url: error.config?.url
         });
-        
-        // Spróbuj z Agent ID jeśli nazwa nie działa
-        if (error.response?.status === 404) {
+
+        // Jeśli nazwa nie działa, spróbuj z ID
+        if (error.response?.status === 404 || error.response?.status === 400) {
             try {
-                const retryResponse = await axios.post(
+                console.log('Retrying with agent ID...');
+                
+                // Utwórz nową konwersację dla retry
+                const retryConversationResponse = await axios.post(
                     `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations`,
                     {
-                        message: message,
-                        blocking: true,
-                        agentConfigurationId: CONFIG.dust.agentId
+                        title: `Chatwoot Retry: ${username}`,
+                        visibility: "private"
                     },
                     {
                         headers: {
@@ -69,9 +103,38 @@ async function callDustAgent(message, username = 'Chatwoot User', conversationId
                         }
                     }
                 );
-                return retryResponse.data;
+
+                const retryConversationId = retryConversationResponse.data.conversation.sId;
+
+                const retryMessageResponse = await axios.post(
+                    `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/conversations/${retryConversationId}/messages`,
+                    {
+                        content: message,
+                        mentions: [
+                            {
+                                configurationId: CONFIG.dust.agentId // Użyj backup ID
+                            }
+                        ],
+                        context: {
+                            username: username,
+                            timezone: "Europe/Warsaw",
+                            fullName: username,
+                            email: "chatwoot@zerah.online",
+                            origin: "api"
+                        }
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${CONFIG.dust.apiKey}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                
+                console.log('Retry successful');
+                return retryMessageResponse.data;
             } catch (retryError) {
-                console.error('Dust API Retry Error:', retryError.response?.data);
+                console.error('Retry failed:', retryError.response?.data);
                 throw retryError;
             }
         }
@@ -115,10 +178,14 @@ app.get('/', (req, res) => {
             testDust: 'GET /test?message=your_message',
             testChatwoot: 'GET /test/chatwoot',
             testDustSimple: 'GET /test/dust-simple',
+            testAgents: 'GET /test/agents',
+            testZerah: 'GET /test/zerah',
+            testWorkspace: 'GET /test/workspace',
             health: 'GET /health'
         },
         config: {
             dustAgent: CONFIG.dust.agentName,
+            dustWorkspace: CONFIG.dust.workspaceId,
             chatwootAccount: CONFIG.chatwoot.accountId,
             port: CONFIG.port
         }
@@ -149,6 +216,102 @@ app.get('/health', (req, res) => {
     });
 });
 
+// NOWY: Sprawdź dostępnych agentów - WAŻNE dla znalezienia @ZERAH
+app.get('/test/agents', async (req, res) => {
+    try {
+        const response = await axios.get(
+            `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/assistant/agent_configurations`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${CONFIG.dust.apiKey}`
+                }
+            }
+        );
+        
+        const agents = response.data.agentConfigurations || [];
+        const zerahAgent = agents.find(agent => 
+            agent.name.toLowerCase().includes('zerah') || 
+            agent.sId.toLowerCase().includes('zerah')
+        );
+
+        res.json({
+            success: true,
+            message: 'Agents retrieved successfully',
+            totalAgents: agents.length,
+            zerahAgent: zerahAgent || 'ZERAH agent not found',
+            currentConfig: {
+                agentName: CONFIG.dust.agentName,
+                agentId: CONFIG.dust.agentId
+            },
+            allAgents: agents.map(agent => ({
+                name: agent.name,
+                sId: agent.sId,
+                status: agent.status,
+                scope: agent.scope
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: error.response?.data
+        });
+    }
+});
+
+// NOWY: Test workspace
+app.get('/test/workspace', async (req, res) => {
+    try {
+        const response = await axios.get(
+            `${CONFIG.dust.baseUrl}/w/${CONFIG.dust.workspaceId}/spaces`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${CONFIG.dust.apiKey}`
+                }
+            }
+        );
+        
+        res.json({
+            success: true,
+            workspaceId: CONFIG.dust.workspaceId,
+            spacesCount: response.data.spaces?.length || 0,
+            spaces: response.data.spaces
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            details: error.response?.data
+        });
+    }
+});
+
+// NOWY: Test specjalnie dla @ZERAH
+app.get('/test/zerah', async (req, res) => {
+    try {
+        const testMessage = req.query.message || 'Cześć ZERAH! To jest test z Railway dla agenta ZERAH.';
+        console.log(`Testing ZERAH agent with message: ${testMessage}`);
+        
+        const response = await callDustAgent(testMessage, 'Railway Test User');
+        
+        res.json({
+            success: true,
+            message: 'ZERAH agent test successful!',
+            testMessage,
+            dustResponse: response,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'ZERAH agent test failed',
+            error: error.message,
+            details: error.response?.data,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
 // Prosty test Dust API - sprawdza połączenie
 app.get('/test/dust-simple', async (req, res) => {
     try {
@@ -164,6 +327,7 @@ app.get('/test/dust-simple', async (req, res) => {
         res.json({
             success: true,
             message: 'Dust API connection works!',
+            workspaceId: CONFIG.dust.workspaceId,
             agentsCount: response.data.agentConfigurations?.length || 0,
             agents: response.data.agentConfigurations?.map(a => ({ 
                 name: a.name, 
@@ -185,18 +349,22 @@ app.get('/test/dust-simple', async (req, res) => {
 app.get('/test', async (req, res) => {
     try {
         const testMessage = req.query.message || 'Cześć ZERAH! To jest test z Railway.';
+        console.log(`Testing with message: ${testMessage}`);
+        
         const response = await callDustAgent(testMessage, 'Test User');
         
         res.json({
             success: true,
             testMessage,
-            dustResponse: response
+            dustResponse: response,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
         res.status(500).json({
             success: false,
             error: error.message,
-            details: error.response?.data
+            details: error.response?.data,
+            timestamp: new Date().toISOString()
         });
     }
 });
@@ -254,14 +422,14 @@ app.post('/webhook/chatwoot', async (req, res) => {
             
             console.log(`Processing message from ${senderName}: ${messageContent}`);
 
-            // Wywołaj Dust Agent
+            // Wywołaj Dust Agent @ZERAH
             const dustResponse = await callDustAgent(messageContent, senderName, conversationId);
 
             // Wyślij odpowiedź z powrotem do Chatwoot
-            if (dustResponse && dustResponse.message) {
+            if (dustResponse && dustResponse.content) {
                 await sendChatwootMessage(
                     conversationId, 
-                    dustResponse.message.content || 'Przepraszam, wystąpił problem z odpowiedzią.',
+                    dustResponse.content || 'Przepraszam, wystąpił problem z odpowiedzią.',
                     'outgoing'
                 );
                 
@@ -271,8 +439,10 @@ app.post('/webhook/chatwoot', async (req, res) => {
             res.json({ 
                 success: true, 
                 processed: true,
-                conversationId: conversationId 
+                conversationId: conversationId,
+                agent: CONFIG.dust.agentName
             });
+
         } else {
             // Ignoruj inne typy eventów
             res.json({ 
@@ -303,12 +473,12 @@ app.post('/webhook/dust', async (req, res) => {
         }
 
         console.log('Direct Dust webhook:', { message, user });
-
         const dustResponse = await callDustAgent(message, user || 'Anonymous', conversationId);
         
         res.json({
             success: true,
             response: dustResponse,
+            agent: CONFIG.dust.agentName,
             timestamp: new Date().toISOString()
         });
 
@@ -327,7 +497,12 @@ app.listen(CONFIG.port, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${CONFIG.port}`);
     console.log(`📡 Chatwoot webhook: /webhook/chatwoot`);
     console.log(`🤖 Dust webhook: /webhook/dust`);
-    console.log(`🧪 Test endpoints: /test, /test/chatwoot, /test/dust-simple`);
+    console.log(`🧪 Test endpoints:`);
+    console.log(`   - /test/agents (find ZERAH agent)`);
+    console.log(`   - /test/zerah (test ZERAH specifically)`);
+    console.log(`   - /test/workspace`);
+    console.log(`   - /test/chatwoot`);
+    console.log(`   - /test/dust-simple`);
     console.log(`💬 Chatwoot URL: ${CONFIG.chatwoot.apiUrl}`);
     console.log(`🎯 Dust Agent: ${CONFIG.dust.agentName} (ID: ${CONFIG.dust.agentId})`);
     console.log(`🌍 App URL: https://zerahpracownia-production.up.railway.app`);
